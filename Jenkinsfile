@@ -6,58 +6,59 @@ pipeline {
     }
     stages {
         stage('Build') {
-            agent { 
-                docker { 
-                    image 'golang' 
+            agent {
+                docker {
+                    image 'golang'
+                    args '-v $GOPATH:/go'
                 }
             }
             steps {
-                // Create our project directory.
-                sh 'cd ${GOPATH}/src'
-                sh 'mkdir -p ${GOPATH}/src/hello-world'
-                // Copy all files in our Jenkins workspace to our project directory.                
-                sh 'cp -r ${WORKSPACE}/* ${GOPATH}/src/hello-world'
-                // Build the app.
-                sh 'go build'               
-            }     
+                sh '''
+                    cd ${GOPATH}/src
+                    mkdir -p ${GOPATH}/src/hello-world
+                    cp -r ${WORKSPACE}/* ${GOPATH}/src/hello-world
+                    cd ${GOPATH}/src/hello-world
+                    go build
+                '''
+            }
         }
         stage('Test') {
-            agent { 
-                docker { 
-                    image 'golang' 
+            agent {
+                docker {
+                    image 'golang'
+                    args '-v $GOPATH:/go'
                 }
             }
-            steps {                 
-                // Create our project directory.
-                sh 'cd ${GOPATH}/src'
-                sh 'mkdir -p ${GOPATH}/src/hello-world'
-                // Copy all files in our Jenkins workspace to our project directory.                
-                sh 'cp -r ${WORKSPACE}/* ${GOPATH}/src/hello-world'
-                // Remove cached test results.
-                sh 'go clean -cache'
-                // Run Unit Tests.
-                sh 'go test ./... -v -short'            
+            steps {
+                sh '''
+                    cd ${GOPATH}/src
+                    mkdir -p ${GOPATH}/src/hello-world
+                    cp -r ${WORKSPACE}/* ${GOPATH}/src/hello-world
+                    cd ${GOPATH}/src/hello-world
+                    go clean -cache
+                    go test ./... -v -short
+                '''
             }
         }
         stage('Publish') {
             environment {
                 registryCredential = 'docker-hub-credentials'
             }
-            steps{
+            steps {
                 script {
                     def appimage = docker.build registry + ":$BUILD_NUMBER"
-                    docker.withRegistry( '', registryCredential ) {
+                    docker.withRegistry('', registryCredential) {
                         appimage.push()
                         appimage.push('latest')
                     }
                 }
             }
         }
-        stage ('Deploy') {
+        stage('Deploy') {
             steps {
-                script{
+                script {
                     def image_id = registry + ":$BUILD_NUMBER"
-                    sh "ansible-playbook  playbook.yml --extra-vars \"image_id=${image_id}\""
+                    sh "ansible-playbook playbook.yml --extra-vars \"image_id=${image_id}\""
                 }
             }
         }
